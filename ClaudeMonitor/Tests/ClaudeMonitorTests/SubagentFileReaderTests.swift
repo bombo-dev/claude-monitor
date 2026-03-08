@@ -142,13 +142,13 @@ struct SubagentFileReaderTests {
         #expect(results[0].agentType == "unknown")
     }
 
-    // lastAssistantText prefix(5000) 적용
-    @Test("lastAssistantText truncated to 5000 characters")
+    // lastAssistantText prefix(2000) 적용
+    @Test("lastAssistantText truncated to 2000 characters")
     func textTruncation() async throws {
         let (sessionDir, reader) = try setupSessionDir()
         let subDir = try createSubagentsDir(in: sessionDir)
 
-        let longText = String(repeating: "a", count: 8000)
+        let longText = String(repeating: "a", count: 5000)
         let content = """
         {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"\(longText)"}]},"stop_reason":"end_turn","sessionId":"s1","timestamp":"2026-03-08T10:00:00Z"}
         """
@@ -157,7 +157,7 @@ struct SubagentFileReaderTests {
 
         let results = await reader.readSubagents(sessionDirectory: sessionDir)
         #expect(results.count == 1)
-        #expect(results[0].lastAssistantText.count == 5000)
+        #expect(results[0].lastAssistantText.count == 2000)
         #expect(results[0].isTextTruncated == true)
     }
 

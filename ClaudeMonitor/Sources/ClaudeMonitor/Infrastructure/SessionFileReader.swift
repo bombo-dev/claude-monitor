@@ -112,8 +112,8 @@ actor SessionFileReader: SessionFileReaderProtocol {
                     .filter { $0["type"] as? String == "text" }
                     .compactMap { $0["text"] as? String }
                 let joined = texts.joined(separator: " ")
-                isTextTruncated = joined.count > 5000
-                lastAssistantText = String(joined.prefix(5000))
+                isTextTruncated = joined.count > 2000
+                lastAssistantText = String(joined.prefix(2000))
             } else {
                 lastAssistantText = ""
                 isTextTruncated = false
