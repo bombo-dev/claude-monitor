@@ -105,6 +105,10 @@ struct PopoverView: View {
 
             Spacer()
 
+            StatusDotView(status: viewModel.statusSummary)
+
+            Spacer()
+
             Button("종료") {
                 NSApplication.shared.terminate(nil)
             }
