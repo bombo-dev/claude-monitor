@@ -21,7 +21,7 @@ struct SessionCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                if session.status == .fileReadError {
+                if case .fileReadError = session.status {
                     Text("데이터 읽기 실패")
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -46,7 +46,8 @@ struct SessionCardView: View {
         case .running: .green
         case .idle: .yellow
         case .completed: .gray
-        case .error, .fileReadError: .red
+        case .error: .red
+        case .fileReadError: .orange
         }
     }
 }

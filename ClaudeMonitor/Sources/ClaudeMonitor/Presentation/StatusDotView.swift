@@ -18,7 +18,7 @@ struct StatusDotView: View {
     private var dotColor: Color {
         switch status {
         case .monitoring: .green
-        case .idle: .secondary
+        case .idle: .orange
         case .error: .red
         }
     }

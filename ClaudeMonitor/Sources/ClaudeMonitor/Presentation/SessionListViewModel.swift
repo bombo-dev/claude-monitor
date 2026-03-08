@@ -10,6 +10,7 @@ enum AppStatus: Sendable {
 @Observable
 final class SessionListViewModel {
     private let store: SessionStore
+    private let stateManager: SessionStateManager
 
     enum Selection: Hashable {
         case session(id: String)
@@ -18,8 +19,9 @@ final class SessionListViewModel {
 
     var selection: Selection?
 
-    init(store: SessionStore) {
+    init(store: SessionStore, stateManager: SessionStateManager) {
         self.store = store
+        self.stateManager = stateManager
     }
 
     var sessions: [SessionInfo] {
@@ -40,8 +42,19 @@ final class SessionListViewModel {
     var hasError: Bool {
         store.sessions.contains { session in
             session.status == .error
-                || session.status == .fileReadError
+                || isFileReadError(session.status)
                 || session.subagents.contains { $0.status == .error }
+        }
+    }
+
+    private func isFileReadError(_ status: SessionStatus) -> Bool {
+        if case .fileReadError = status { return true }
+        return false
+    }
+
+    func dismissSession(_ session: SessionInfo) {
+        Task {
+            await stateManager.dismissSession(sessionId: session.id)
         }
     }
 

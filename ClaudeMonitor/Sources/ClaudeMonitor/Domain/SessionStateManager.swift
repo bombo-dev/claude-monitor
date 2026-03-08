@@ -24,6 +24,7 @@ actor SessionStateManager {
     private var pendingRemovals: [PendingRemoval] = []
     private var previousPids: Set<Int> = []
     private var pidToSessionId: [Int: String] = [:]
+    private var dismissedSessionIds: Set<String> = []
     private var processTask: Task<Void, Never>?
     private var fileTask: Task<Void, Never>?
 
@@ -141,7 +142,8 @@ actor SessionStateManager {
                 )
                 updateSubagents(sessionId: sessionId, subagents: subagents)
             } catch {
-                markFileReadError(sessionId: sessionId, now: now)
+                let reason = FileReadErrorReason(from: error)
+                markFileReadError(sessionId: sessionId, now: now, reason: reason)
             }
         }
 
@@ -156,6 +158,8 @@ actor SessionStateManager {
         let now = clock()
         let projectName = URL(fileURLWithPath: cwd).lastPathComponent
         let sessionId = "\(proc.pid)-\(proc.tty)"
+
+        guard !dismissedSessionIds.contains(sessionId) else { return }
 
         let info = SessionInfo(
             id: sessionId,
@@ -212,7 +216,7 @@ actor SessionStateManager {
         let newStatus: SessionStatus
         if session.info.status == .idle && snapshot.lastModified > session.enteredCurrentStatusAt {
             newStatus = .running
-        } else if session.info.status == .fileReadError {
+        } else if case .fileReadError = session.info.status {
             newStatus = .running
         } else {
             newStatus = session.info.status
@@ -263,18 +267,27 @@ actor SessionStateManager {
         managed[sessionId] = session
     }
 
-    private func markFileReadError(sessionId: String, now: Date) {
+    private func markFileReadError(sessionId: String, now: Date, reason: FileReadErrorReason) {
         guard var session = managed[sessionId] else { return }
 
         // Only transition to fileReadError from running or idle
         switch session.info.status {
         case .running, .idle:
-            session.info = rebuildInfo(session.info, status: .fileReadError, lastUpdated: now)
+            session.info = rebuildInfo(session.info, status: .fileReadError(reason: reason), lastUpdated: now)
             session.enteredCurrentStatusAt = now
             managed[sessionId] = session
         default:
             break
         }
+    }
+
+    func dismissSession(sessionId: String) async {
+        if let session = managed[sessionId] {
+            pidToSessionId.removeValue(forKey: session.info.pid)
+        }
+        dismissedSessionIds.insert(sessionId)
+        managed.removeValue(forKey: sessionId)
+        await pushToStore()
     }
 
     private func checkIdleTransitions(alivePids: Set<Int>) {

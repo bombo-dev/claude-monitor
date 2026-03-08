@@ -299,7 +299,7 @@ struct SessionStateManagerTests {
 
         let sessions = await store.sessions
         #expect(sessions.count == 1)
-        #expect(sessions[0].status == .fileReadError)
+        #expect(sessions[0].status == .fileReadError(reason: .noJsonlFile))
     }
 
     // TC-SSM-08: fileReadError → running on successful read
@@ -324,7 +324,7 @@ struct SessionStateManagerTests {
         await manager.pollFilesOnce()
 
         var sessions = await store.sessions
-        #expect(sessions[0].status == .fileReadError)
+        #expect(sessions[0].status == .fileReadError(reason: .noJsonlFile))
 
         // Second: succeed
         await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))

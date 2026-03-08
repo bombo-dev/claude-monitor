@@ -87,6 +87,9 @@ struct PopoverView: View {
                 selection: viewModel.selection,
                 onOpenInFinder: { session in
                     viewModel.openInFinder(session: session)
+                },
+                onDismissSession: { session in
+                    viewModel.dismissSession(session)
                 }
             )
         }

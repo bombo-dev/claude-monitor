@@ -8,7 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var manager: SessionStateManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let viewModel = SessionListViewModel(store: sessionStore)
+        let mgr = SessionStateManager(store: sessionStore)
+        manager = mgr
+
+        let viewModel = SessionListViewModel(store: sessionStore, stateManager: mgr)
         let windowController = MainWindowController(viewModel: viewModel)
         mainWindowController = windowController
         menuBarController = MenuBarController(
@@ -16,9 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mainWindowController: windowController
         )
         menuBarController?.setup()
-
-        let mgr = SessionStateManager(store: sessionStore)
-        manager = mgr
 
         Task {
             await NotificationService.shared.requestPermission()
