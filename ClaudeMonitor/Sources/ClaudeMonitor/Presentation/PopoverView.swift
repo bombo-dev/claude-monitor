@@ -23,26 +23,53 @@ struct PopoverView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: "terminal.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+
             Text("Claude Monitor")
                 .font(.headline)
+                .fontWeight(.semibold)
+
             Spacer()
-            Text("\(viewModel.activeCount) active")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            if viewModel.activeCount > 0 {
+                Text("\(viewModel.activeCount) active")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.12))
+                    )
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .frame(height: 38)
+        .background(.bar)
     }
 
     private var emptyState: some View {
-        VStack {
+        VStack(spacing: 0) {
             Spacer()
-            Text("실행 중인 세션 없음")
+            Image(systemName: "desktopcomputer.and.arrow.down")
+                .font(.system(size: 52, weight: .thin))
                 .foregroundStyle(.secondary)
+                .padding(.bottom, 16)
+            Text("실행 중인 세션 없음")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 6)
+            Text("Claude Code CLI를 실행하면\n여기에 세션이 표시됩니다.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
     }
 
     private var contentArea: some View {
