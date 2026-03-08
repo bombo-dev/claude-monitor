@@ -1,10 +1,11 @@
-import SwiftUI
+import AppKit
 
 @main
-struct ClaudeMonitorApp: App {
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+struct ClaudeMonitorApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 }

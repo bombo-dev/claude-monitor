@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProcessInfo: Sendable, Hashable {
+struct ClaudeProcessInfo: Sendable, Hashable {
     let pid: Int
     let tty: String
     let cwd: String?
