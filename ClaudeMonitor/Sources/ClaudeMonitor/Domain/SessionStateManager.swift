@@ -1,0 +1,317 @@
+import Foundation
+
+actor SessionStateManager {
+
+    private struct ManagedSession: Sendable {
+        var info: SessionInfo
+        let processInfo: ClaudeProcessInfo
+        var enteredCurrentStatusAt: Date
+        var hasError: Bool = false
+    }
+
+    private let sessionStore: SessionStore
+    private let processScanner: any ProcessScannerProtocol
+    private let fileReader: any SessionFileReaderProtocol
+    private let notificationService: any NotificationServiceProtocol
+    private let pathEncoder: PathEncoder
+    private let clock: @Sendable () -> Date
+    private let processInterval: Duration
+    private let fileInterval: Duration
+    private let idleThreshold: TimeInterval
+
+    private var managed: [String: ManagedSession] = [:]
+    private var pendingRemovals: [PendingRemoval] = []
+    private var previousPids: Set<Int> = []
+    private var pidToSessionId: [Int: String] = [:]
+    private var processTask: Task<Void, Never>?
+    private var fileTask: Task<Void, Never>?
+
+    init(
+        store: SessionStore,
+        processScanner: any ProcessScannerProtocol = ProcessScanner(),
+        fileReader: any SessionFileReaderProtocol = SessionFileReader(),
+        notificationService: any NotificationServiceProtocol = NotificationService.shared,
+        pathEncoder: PathEncoder = PathEncoder(),
+        clock: @escaping @Sendable () -> Date = { Date() },
+        processInterval: Duration = .seconds(10),
+        fileInterval: Duration = .seconds(30),
+        idleThreshold: TimeInterval = 5 * 60
+    ) {
+        self.sessionStore = store
+        self.processScanner = processScanner
+        self.fileReader = fileReader
+        self.notificationService = notificationService
+        self.pathEncoder = pathEncoder
+        self.clock = clock
+        self.processInterval = processInterval
+        self.fileInterval = fileInterval
+        self.idleThreshold = idleThreshold
+    }
+
+    deinit {
+        processTask?.cancel()
+        fileTask?.cancel()
+    }
+
+    func start() {
+        guard processTask == nil else { return }
+
+        processTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await self.pollProcessesOnce()
+                try? await Task.sleep(for: self.processInterval)
+            }
+        }
+
+        fileTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await self.pollFilesOnce()
+                try? await Task.sleep(for: self.fileInterval)
+            }
+        }
+    }
+
+    func stop() {
+        processTask?.cancel()
+        processTask = nil
+        fileTask?.cancel()
+        fileTask = nil
+    }
+
+    // MARK: - Process Polling
+
+    func pollProcessesOnce() async {
+        let processes = await processScanner.scan()
+        let currentPids = Set(processes.map(\.pid))
+
+        // Detect new PIDs
+        for proc in processes where !previousPids.contains(proc.pid) {
+            addSession(from: proc)
+        }
+
+        // Detect terminated PIDs
+        let terminatedPids = previousPids.subtracting(currentPids)
+        for pid in terminatedPids {
+            markTerminated(pid: pid)
+        }
+
+        // Check idle transitions
+        checkIdleTransitions(alivePids: currentPids)
+
+        // Process pending removals
+        processPendingRemovals()
+
+        previousPids = currentPids
+        await pushToStore()
+    }
+
+    // MARK: - File Polling
+
+    func pollFilesOnce() async {
+        let now = clock()
+
+        for (sessionId, session) in managed {
+            guard let cwd = session.processInfo.cwd,
+                  let projectDir = pathEncoder.projectDirectory(for: cwd)
+            else { continue }
+
+            // Skip completed/error sessions
+            switch session.info.status {
+            case .completed, .error:
+                continue
+            default:
+                break
+            }
+
+            do {
+                let snapshot = try await fileReader.readLatestSession(projectDirectory: projectDir)
+                updateFromSnapshot(sessionId: sessionId, snapshot: snapshot, now: now)
+            } catch {
+                markFileReadError(sessionId: sessionId, now: now)
+            }
+        }
+
+        await pushToStore()
+    }
+
+    // MARK: - Session Management
+
+    private func addSession(from proc: ClaudeProcessInfo) {
+        guard let cwd = proc.cwd else { return }
+
+        let now = clock()
+        let projectName = URL(fileURLWithPath: cwd).lastPathComponent
+        let sessionId = "\(proc.pid)-\(proc.tty)"
+
+        let info = SessionInfo(
+            id: sessionId,
+            pid: proc.pid,
+            tty: proc.tty,
+            projectName: projectName,
+            projectPath: URL(fileURLWithPath: cwd),
+            gitBranch: "unknown",
+            lastAssistantText: "",
+            status: .running,
+            lastUpdated: now
+        )
+
+        managed[sessionId] = ManagedSession(
+            info: info,
+            processInfo: proc,
+            enteredCurrentStatusAt: now
+        )
+        pidToSessionId[proc.pid] = sessionId
+    }
+
+    private func markTerminated(pid: Int) {
+        guard let sessionId = pidToSessionId[pid],
+              var session = managed[sessionId]
+        else { return }
+
+        let now = clock()
+
+        if session.hasError {
+            session.info = rebuildInfo(session.info, status: .error, lastUpdated: now)
+            pendingRemovals.append(PendingRemoval(sessionId: sessionId, removeAfter: now.addingTimeInterval(60)))
+            notificationService.notify(
+                title: session.info.projectName,
+                body: "Session error"
+            )
+        } else {
+            session.info = rebuildInfo(session.info, status: .completed, lastUpdated: now)
+            pendingRemovals.append(PendingRemoval(sessionId: sessionId, removeAfter: now.addingTimeInterval(30)))
+            notificationService.notify(
+                title: session.info.projectName,
+                body: "Session completed"
+            )
+        }
+
+        session.enteredCurrentStatusAt = now
+        managed[sessionId] = session
+        pidToSessionId.removeValue(forKey: pid)
+    }
+
+    private func updateFromSnapshot(sessionId: String, snapshot: SessionSnapshot, now: Date) {
+        guard var session = managed[sessionId] else { return }
+
+        let newStatus: SessionStatus
+        if session.info.status == .idle && snapshot.lastModified > session.enteredCurrentStatusAt {
+            newStatus = .running
+        } else if session.info.status == .fileReadError {
+            newStatus = .running
+        } else {
+            newStatus = session.info.status
+        }
+
+        let statusChanged = newStatus != session.info.status
+
+        session.info = SessionInfo(
+            id: session.info.id,
+            pid: session.info.pid,
+            tty: session.info.tty,
+            projectName: session.info.projectName,
+            projectPath: session.info.projectPath,
+            gitBranch: snapshot.gitBranch,
+            lastAssistantText: snapshot.lastAssistantText,
+            status: newStatus,
+            lastUpdated: now
+        )
+
+        session.hasError = snapshot.hasError
+
+        if statusChanged {
+            session.enteredCurrentStatusAt = now
+        }
+
+        managed[sessionId] = session
+    }
+
+    private func markFileReadError(sessionId: String, now: Date) {
+        guard var session = managed[sessionId] else { return }
+
+        // Only transition to fileReadError from running or idle
+        switch session.info.status {
+        case .running, .idle:
+            session.info = rebuildInfo(session.info, status: .fileReadError, lastUpdated: now)
+            session.enteredCurrentStatusAt = now
+            managed[sessionId] = session
+        default:
+            break
+        }
+    }
+
+    private func checkIdleTransitions(alivePids: Set<Int>) {
+        let now = clock()
+
+        for (sessionId, var session) in managed {
+            guard alivePids.contains(session.info.pid) else { continue }
+
+            if session.info.status == .running {
+                let elapsed = now.timeIntervalSince(session.info.lastUpdated)
+                if elapsed > idleThreshold {
+                    session.info = rebuildInfo(session.info, status: .idle, lastUpdated: now)
+                    session.enteredCurrentStatusAt = now
+                    managed[sessionId] = session
+                }
+            }
+        }
+    }
+
+    private func processPendingRemovals() {
+        let now = clock()
+        var remainingRemovals: [PendingRemoval] = []
+
+        for removal in pendingRemovals {
+            if removal.removeAfter <= now {
+                if let session = managed[removal.sessionId] {
+                    pidToSessionId.removeValue(forKey: session.info.pid)
+                }
+                managed.removeValue(forKey: removal.sessionId)
+            } else {
+                remainingRemovals.append(removal)
+            }
+        }
+
+        pendingRemovals = remainingRemovals
+    }
+
+    // MARK: - SwiftUI Push
+
+    private func pushToStore() async {
+        let sortedSessions = managed.values
+            .map(\.info)
+            .sorted { $0.lastUpdated > $1.lastUpdated }
+
+        await MainActor.run {
+            sessionStore.sessions = sortedSessions
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func rebuildInfo(_ info: SessionInfo, status: SessionStatus, lastUpdated: Date) -> SessionInfo {
+        SessionInfo(
+            id: info.id,
+            pid: info.pid,
+            tty: info.tty,
+            projectName: info.projectName,
+            projectPath: info.projectPath,
+            gitBranch: info.gitBranch,
+            lastAssistantText: info.lastAssistantText,
+            status: status,
+            lastUpdated: lastUpdated
+        )
+    }
+
+    // MARK: - Test Helpers
+
+    var currentSessions: [SessionInfo] {
+        managed.values.map(\.info).sorted { $0.lastUpdated > $1.lastUpdated }
+    }
+
+    var pendingRemovalCount: Int {
+        pendingRemovals.count
+    }
+}
