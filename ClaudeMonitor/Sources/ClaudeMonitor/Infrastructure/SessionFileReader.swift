@@ -1,6 +1,6 @@
 import Foundation
 
-actor SessionFileReader {
+actor SessionFileReader: SessionFileReaderProtocol {
     private let claudeProjectsBase: URL
 
     init(homeDirectory: URL = .homeDirectory) {

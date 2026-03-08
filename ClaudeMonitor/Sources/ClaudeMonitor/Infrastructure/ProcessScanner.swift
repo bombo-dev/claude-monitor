@@ -1,19 +1,19 @@
 import Foundation
 import Darwin
 
-actor ProcessScanner {
+actor ProcessScanner: ProcessScannerProtocol {
     private var cwdCache: [Int: String] = [:]
 
-    func scan() async -> [ProcessInfo] {
+    func scan() async -> [ClaudeProcessInfo] {
         let output = runPs()
         let entries = parsePs(output: output)
-        var results: [ProcessInfo] = []
+        var results: [ClaudeProcessInfo] = []
         var alivePids: Set<Int> = []
 
         for entry in entries {
             alivePids.insert(entry.pid)
             let cwd = getCwd(pid: entry.pid)
-            results.append(ProcessInfo(pid: entry.pid, tty: entry.tty, cwd: cwd))
+            results.append(ClaudeProcessInfo(pid: entry.pid, tty: entry.tty, cwd: cwd))
         }
 
         invalidateCache(alivePids: alivePids)

@@ -1,6 +1,6 @@
 import UserNotifications
 
-final class NotificationService: Sendable {
+final class NotificationService: NotificationServiceProtocol, Sendable {
     static let shared = NotificationService()
 
     func requestPermission() async {

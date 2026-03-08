@@ -10,7 +10,7 @@ struct ProcessScannerTests {
         let scanner = ProcessScanner()
         let results = await scanner.scan()
         // Can't guarantee claude is running, just verify it doesn't crash
-        #expect(results is [ProcessInfo])
+        #expect(results is [ClaudeProcessInfo])
     }
 
     // TC-02: TTY ?? excluded
