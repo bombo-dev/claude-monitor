@@ -87,6 +87,9 @@ struct MainWindowView: View {
                 selection: selection,
                 onOpenInFinder: { session in
                     viewModel.openInFinder(session: session)
+                },
+                onDismissSession: { session in
+                    viewModel.dismissSession(session)
                 }
             )
         }

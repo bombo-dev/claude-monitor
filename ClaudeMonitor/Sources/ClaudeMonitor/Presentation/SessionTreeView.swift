@@ -156,7 +156,8 @@ struct SessionTreeView: View {
         case .running: .green
         case .idle: .yellow
         case .completed: .gray
-        case .error, .fileReadError: .red
+        case .error: .red
+        case .fileReadError: .orange
         }
     }
 
@@ -165,7 +166,8 @@ struct SessionTreeView: View {
         case .running: "circle.fill"
         case .idle: "pause.circle.fill"
         case .completed: "checkmark.circle.fill"
-        case .error, .fileReadError: "exclamationmark.circle.fill"
+        case .error: "exclamationmark.circle.fill"
+        case .fileReadError: "exclamationmark.triangle.fill"
         }
     }
 

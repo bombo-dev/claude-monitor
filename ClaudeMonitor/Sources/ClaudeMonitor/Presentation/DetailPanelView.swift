@@ -3,7 +3,8 @@ import SwiftUI
 struct DetailPanelView: View {
     let sessions: [SessionInfo]
     let selection: SessionListViewModel.Selection?
-    let onOpenInFinder: (SessionInfo) -> Void
+    var onOpenInFinder: ((SessionInfo) -> Void)?
+    var onDismissSession: ((SessionInfo) -> Void)?
 
     var body: some View {
         Group {
@@ -49,7 +50,7 @@ struct DetailPanelView: View {
                 Spacer()
 
                 Button("Finder에서 보기") {
-                    onOpenInFinder(session)
+                    onOpenInFinder?(session)
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
@@ -72,12 +73,10 @@ struct DetailPanelView: View {
                 subagentSummary(subagents: session.subagents)
             }
 
-            // Last assistant text
-            if session.status == .fileReadError {
+            // Last assistant text or error detail
+            if case .fileReadError(let reason) = session.status {
                 Divider().padding(.vertical, 4)
-                Text("데이터 읽기 실패")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                fileReadErrorSection(reason: reason, session: session)
             } else if !session.lastAssistantText.isEmpty {
                 Divider().padding(.vertical, 4)
                 lastAssistantTextSection(text: session.lastAssistantText)
@@ -204,12 +203,44 @@ struct DetailPanelView: View {
             )
     }
 
+    private func fileReadErrorSection(reason: FileReadErrorReason, session: SessionInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("데이터 읽기 실패", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+
+            Text(errorDescription(for: reason))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            Button(role: .destructive) {
+                onDismissSession?(session)
+            } label: {
+                Label("세션 제거", systemImage: "trash")
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.red)
+        }
+    }
+
+    private func errorDescription(for reason: FileReadErrorReason) -> String {
+        switch reason {
+        case .noJsonlFile: "세션 데이터 파일을 찾을 수 없습니다"
+        case .noAssistantMessage: "응답 메시지가 없습니다"
+        case .encodingError: "파일 인코딩 오류"
+        case .pathViolation: "경로 접근이 차단되었습니다"
+        case .unknown: "알 수 없는 오류"
+        }
+    }
+
     private func statusColor(for status: SessionStatus) -> Color {
         switch status {
         case .running: .green
         case .idle: .yellow
         case .completed: .gray
-        case .error, .fileReadError: .red
+        case .error: .red
+        case .fileReadError: .orange
         }
     }
 
@@ -219,7 +250,7 @@ struct DetailPanelView: View {
         case .idle: "idle"
         case .completed: "completed"
         case .error: "error"
-        case .fileReadError: "error"
+        case .fileReadError: "file error"
         }
     }
 
