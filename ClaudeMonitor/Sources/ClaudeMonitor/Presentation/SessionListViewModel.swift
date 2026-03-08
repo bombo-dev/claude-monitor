@@ -1,5 +1,11 @@
 import AppKit
 
+enum AppStatus: Sendable {
+    case monitoring(count: Int)
+    case idle
+    case error
+}
+
 @MainActor
 @Observable
 final class SessionListViewModel {
@@ -22,6 +28,12 @@ final class SessionListViewModel {
 
     var activeCount: Int {
         store.sessions.filter { $0.status == .running || $0.status == .idle }.count
+    }
+
+    var statusSummary: AppStatus {
+        if hasError { return .error }
+        if activeCount > 0 { return .monitoring(count: activeCount) }
+        return .idle
     }
 
     // AC-17: hasError includes subagent error rollup

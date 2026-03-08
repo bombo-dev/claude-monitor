@@ -94,7 +94,10 @@ struct MainWindowView: View {
 
     private var footer: some View {
         HStack {
+            StatusDotView(status: viewModel.statusSummary)
+
             Spacer()
+
             Text("Claude Monitor v3")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
