@@ -9,7 +9,9 @@ struct PopoverView: View {
             header
             Divider()
 
-            if viewModel.sessions.isEmpty {
+            if viewModel.isInitialLoading {
+                loadingState
+            } else if viewModel.sessions.isEmpty {
                 emptyState
             } else {
                 contentArea
@@ -50,6 +52,20 @@ struct PopoverView: View {
         .padding(.horizontal, 12)
         .frame(height: 38)
         .background(.bar)
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            ProgressView()
+                .scaleEffect(0.8)
+                .padding(.bottom, 12)
+            Text("세션 확인 중...")
+                .font(.body)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var emptyState: some View {
