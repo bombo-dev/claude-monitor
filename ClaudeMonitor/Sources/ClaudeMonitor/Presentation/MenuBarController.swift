@@ -7,7 +7,6 @@ final class MenuBarController {
     private let popover = NSPopover()
     private let viewModel: SessionListViewModel
     private let mainWindowController: MainWindowController
-    private var rightClickMonitor: Any?
 
     init(viewModel: SessionListViewModel, mainWindowController: MainWindowController) {
         self.viewModel = viewModel
@@ -24,29 +23,20 @@ final class MenuBarController {
             )
             button.image = image
             button.imagePosition = .imageLeading
-            button.action = #selector(handleLeftClick(_:))
+            button.action = #selector(togglePopover)
             button.target = self
         }
 
         statusItem = item
 
-        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) {
-            [weak self] event in
-            guard let self,
-                  let button = self.statusItem?.button,
-                  let window = button.window,
-                  window == event.window else {
-                return event
-            }
-            let locationInButton = button.convert(event.locationInWindow, from: nil)
-            if button.bounds.contains(locationInButton) {
-                self.showContextMenu()
-                return nil
-            }
-            return event
-        }
-
-        let hostingView = NSHostingController(rootView: PopoverView(viewModel: viewModel))
+        let hostingView = NSHostingController(
+            rootView: PopoverView(
+                viewModel: viewModel,
+                onOpenWindow: { [weak self] in
+                    self?.openWindow()
+                }
+            )
+        )
         popover.contentViewController = hostingView
         popover.contentSize = NSSize(width: 680, height: 460)
         popover.behavior = .transient
@@ -55,11 +45,7 @@ final class MenuBarController {
         startObserving()
     }
 
-    @objc private func handleLeftClick(_ sender: NSStatusBarButton) {
-        togglePopover()
-    }
-
-    private func togglePopover() {
+    @objc private func togglePopover() {
         guard let button = statusItem?.button else { return }
 
         if popover.isShown {
@@ -70,41 +56,9 @@ final class MenuBarController {
         }
     }
 
-    private func showContextMenu() {
-        let menu = NSMenu()
-
-        let openWindowItem = NSMenuItem(
-            title: "윈도우로 열기",
-            action: #selector(openWindow),
-            keyEquivalent: ""
-        )
-        openWindowItem.target = self
-        menu.addItem(openWindowItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(
-            title: "종료",
-            action: #selector(quitApp),
-            keyEquivalent: ""
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        statusItem?.menu = menu
-        statusItem?.button?.performClick(nil)
-        statusItem?.menu = nil
-    }
-
-    @objc private func openWindow() {
-        if popover.isShown {
-            popover.performClose(nil)
-        }
+    private func openWindow() {
+        popover.performClose(nil)
         mainWindowController.openOrFocus()
-    }
-
-    @objc private func quitApp() {
-        NSApplication.shared.terminate(nil)
     }
 
     private func updateIcon() {
