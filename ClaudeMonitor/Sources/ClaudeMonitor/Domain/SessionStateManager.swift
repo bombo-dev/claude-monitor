@@ -12,6 +12,7 @@ actor SessionStateManager {
     private let sessionStore: SessionStore
     private let processScanner: any ProcessScannerProtocol
     private let fileReader: any SessionFileReaderProtocol
+    private let subagentReader: SubagentFileReader
     private let notificationService: any NotificationServiceProtocol
     private let pathEncoder: PathEncoder
     private let clock: @Sendable () -> Date
@@ -30,6 +31,7 @@ actor SessionStateManager {
         store: SessionStore,
         processScanner: any ProcessScannerProtocol = ProcessScanner(),
         fileReader: any SessionFileReaderProtocol = SessionFileReader(),
+        subagentReader: SubagentFileReader = SubagentFileReader(),
         notificationService: any NotificationServiceProtocol = NotificationService.shared,
         pathEncoder: PathEncoder = PathEncoder(),
         clock: @escaping @Sendable () -> Date = { Date() },
@@ -40,6 +42,7 @@ actor SessionStateManager {
         self.sessionStore = store
         self.processScanner = processScanner
         self.fileReader = fileReader
+        self.subagentReader = subagentReader
         self.notificationService = notificationService
         self.pathEncoder = pathEncoder
         self.clock = clock
@@ -128,6 +131,15 @@ actor SessionStateManager {
             do {
                 let snapshot = try await fileReader.readLatestSession(projectDirectory: projectDir)
                 updateFromSnapshot(sessionId: sessionId, snapshot: snapshot, now: now)
+
+                // Read subagents from session directory
+                let sessionDir = projectDir.appending(
+                    path: snapshot.sessionId, directoryHint: .isDirectory
+                )
+                let subagents = await subagentReader.readSubagents(
+                    sessionDirectory: sessionDir
+                )
+                updateSubagents(sessionId: sessionId, subagents: subagents)
             } catch {
                 markFileReadError(sessionId: sessionId, now: now)
             }
@@ -227,6 +239,27 @@ actor SessionStateManager {
             session.enteredCurrentStatusAt = now
         }
 
+        managed[sessionId] = session
+    }
+
+    private func updateSubagents(sessionId: String, subagents: [SubagentInfo]) {
+        guard var session = managed[sessionId] else { return }
+        session.info = SessionInfo(
+            id: session.info.id,
+            pid: session.info.pid,
+            tty: session.info.tty,
+            projectName: session.info.projectName,
+            projectPath: session.info.projectPath,
+            gitBranch: session.info.gitBranch,
+            lastAssistantText: session.info.lastAssistantText,
+            status: session.info.status,
+            lastUpdated: session.info.lastUpdated,
+            subagents: subagents
+        )
+        // AC-17: hasError rollup - include subagent errors
+        if subagents.contains(where: { $0.status == .error }) {
+            session.hasError = true
+        }
         managed[sessionId] = session
     }
 
