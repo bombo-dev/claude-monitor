@@ -79,7 +79,7 @@ struct DetailPanelView: View {
                 fileReadErrorSection(reason: reason, session: session)
             } else if !session.lastAssistantText.isEmpty {
                 Divider().padding(.vertical, 4)
-                lastAssistantTextSection(text: session.lastAssistantText)
+                lastAssistantTextSection(text: session.lastAssistantText, isTruncated: session.isTextTruncated)
             }
         }
     }
@@ -109,14 +109,14 @@ struct DetailPanelView: View {
             // Last assistant text
             if !agent.lastAssistantText.isEmpty {
                 Divider().padding(.vertical, 4)
-                lastAssistantTextSection(text: agent.lastAssistantText)
+                lastAssistantTextSection(text: agent.lastAssistantText, isTruncated: agent.isTextTruncated)
             }
         }
     }
 
     // MARK: - Last Assistant Text
 
-    private func lastAssistantTextSection(text: String) -> some View {
+    private func lastAssistantTextSection(text: String, isTruncated: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("마지막 응답")
                 .font(.caption2)
@@ -124,11 +124,20 @@ struct DetailPanelView: View {
                 .foregroundStyle(.secondary)
 
             ScrollView {
-                Text(text)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(text)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if isTruncated {
+                        Divider().padding(.vertical, 6)
+                        Text("내용이 너무 길어 일부만 표시됩니다.")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .padding(10)
             }
             .background(
                 RoundedRectangle(cornerRadius: 8)

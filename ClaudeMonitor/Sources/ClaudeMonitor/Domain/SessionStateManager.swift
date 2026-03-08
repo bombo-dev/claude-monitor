@@ -169,6 +169,7 @@ actor SessionStateManager {
             projectPath: URL(fileURLWithPath: cwd),
             gitBranch: "unknown",
             lastAssistantText: "",
+            isTextTruncated: false,
             status: .running,
             lastUpdated: now,
             subagents: []
@@ -232,6 +233,7 @@ actor SessionStateManager {
             projectPath: session.info.projectPath,
             gitBranch: snapshot.gitBranch,
             lastAssistantText: snapshot.lastAssistantText,
+            isTextTruncated: snapshot.isTextTruncated,
             status: newStatus,
             lastUpdated: now,
             subagents: session.info.subagents
@@ -256,6 +258,7 @@ actor SessionStateManager {
             projectPath: session.info.projectPath,
             gitBranch: session.info.gitBranch,
             lastAssistantText: session.info.lastAssistantText,
+            isTextTruncated: session.info.isTextTruncated,
             status: session.info.status,
             lastUpdated: session.info.lastUpdated,
             subagents: subagents
@@ -348,6 +351,7 @@ actor SessionStateManager {
             projectPath: info.projectPath,
             gitBranch: info.gitBranch,
             lastAssistantText: info.lastAssistantText,
+            isTextTruncated: info.isTextTruncated,
             status: status,
             lastUpdated: lastUpdated,
             subagents: info.subagents

@@ -98,6 +98,7 @@ actor SubagentFileReader {
 
         var parentSessionId: String?
         var lastAssistantText: String = ""
+        var isTextTruncated = false
         var lastUpdated: Date?
         var foundAssistant = false
         var hasError = false
@@ -131,7 +132,9 @@ actor SubagentFileReader {
                 let texts = content
                     .filter { $0["type"] as? String == "text" }
                     .compactMap { $0["text"] as? String }
-                lastAssistantText = String(texts.joined(separator: " ").prefix(500))
+                let joined = texts.joined(separator: " ")
+                isTextTruncated = joined.count > 5000
+                lastAssistantText = String(joined.prefix(5000))
             }
             foundAssistant = true
         }
@@ -153,6 +156,7 @@ actor SubagentFileReader {
             agentType: agentType,
             parentSessionId: parentSessionId ?? "unknown",
             lastAssistantText: lastAssistantText,
+            isTextTruncated: isTextTruncated,
             lastUpdated: lastUpdated ?? fileDate,
             status: status
         )

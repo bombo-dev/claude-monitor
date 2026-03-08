@@ -106,13 +106,17 @@ actor SessionFileReader: SessionFileReaderProtocol {
             else { continue }
 
             let lastAssistantText: String
+            let isTextTruncated: Bool
             if let content = message["content"] as? [[String: Any]] {
                 let texts = content
                     .filter { $0["type"] as? String == "text" }
                     .compactMap { $0["text"] as? String }
-                lastAssistantText = String(texts.joined(separator: " ").prefix(100))
+                let joined = texts.joined(separator: " ")
+                isTextTruncated = joined.count > 5000
+                lastAssistantText = String(joined.prefix(5000))
             } else {
                 lastAssistantText = ""
+                isTextTruncated = false
             }
 
             let stopReason = json["stop_reason"] as? String
@@ -126,6 +130,7 @@ actor SessionFileReader: SessionFileReaderProtocol {
                 sessionId: sessionId ?? "unknown",
                 gitBranch: gitBranch ?? "unknown",
                 lastAssistantText: lastAssistantText,
+                isTextTruncated: isTextTruncated,
                 lastModified: lastModified,
                 hasError: hasError
             )
