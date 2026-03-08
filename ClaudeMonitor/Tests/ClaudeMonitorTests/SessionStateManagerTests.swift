@@ -434,4 +434,88 @@ struct SessionStateManagerTests {
         let sessions = await store.sessions
         #expect(sessions.count == 3)
     }
+
+    // TC-SSM-13: isInitialLoading remains true after only process poll
+    @Test("isInitialLoading remains true after only process poll (AC-1, AC-2)")
+    func isInitialLoadingRemainsAfterProcessPollOnly() async {
+        let scanner = MockProcessScanner()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner)
+
+        await scanner.setScanResults([[makeProc()]])
+        await manager.pollProcessesOnce()
+
+        let loading = await store.isInitialLoading
+        #expect(loading == true, "isInitialLoading should remain true until file poll completes")
+    }
+
+    // TC-SSM-14: isInitialLoading becomes false after both polls complete
+    @Test("isInitialLoading becomes false after both polls complete (AC-3)")
+    func isInitialLoadingFalseAfterBothPolls() async {
+        let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner, fileReader: fileReader)
+
+        let proc = makeProc()
+        await scanner.setScanResults([[proc]])
+
+        let pathEncoder = makePathEncoder()
+        if let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) {
+            await fileReader.setResult(
+                for: projectDir,
+                result: .success(makeSnapshot())
+            )
+        }
+
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        let loading = await store.isInitialLoading
+        #expect(loading == false, "isInitialLoading should be false after both polls complete")
+    }
+
+    // TC-SSM-15: isInitialLoading stays false after subsequent polls (AC-4)
+    @Test("isInitialLoading stays false after subsequent polls (AC-4)")
+    func isInitialLoadingStaysFalseAfterSubsequentPolls() async {
+        let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner, fileReader: fileReader)
+
+        let proc = makeProc()
+        await scanner.setScanResults([[proc], [proc]])
+
+        let pathEncoder = makePathEncoder()
+        if let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) {
+            await fileReader.setResult(
+                for: projectDir,
+                result: .success(makeSnapshot())
+            )
+        }
+
+        // Initial polls
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        // Subsequent polls
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        let loading = await store.isInitialLoading
+        #expect(loading == false, "isInitialLoading should stay false after subsequent polls")
+    }
+
+    // TC-SSM-16: Empty state shows correctly when no Claude processes (AC-5)
+    @Test("Empty state after both polls with no processes (AC-5)")
+    func emptyStateAfterBothPollsNoProcesses() async {
+        let scanner = MockProcessScanner()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner)
+
+        await scanner.setScanResults([[]])
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        let loading = await store.isInitialLoading
+        let sessions = await store.sessions
+        #expect(loading == false, "isInitialLoading should be false after both polls")
+        #expect(sessions.isEmpty, "Sessions should be empty with no processes")
+    }
 }

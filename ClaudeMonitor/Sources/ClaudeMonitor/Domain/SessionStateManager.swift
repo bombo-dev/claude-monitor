@@ -24,6 +24,8 @@ actor SessionStateManager {
     private var pendingRemovals: [PendingRemoval] = []
     private var previousPids: Set<Int> = []
     private var pidToSessionId: [Int: String] = [:]
+    private var processPolledOnce = false
+    private var filePolledOnce = false
     private var dismissedSessionIds: Set<String> {
         didSet { Self.saveDismissedIds(dismissedSessionIds) }
     }
@@ -112,7 +114,7 @@ actor SessionStateManager {
 
         previousPids = currentPids
         await pushToStore()
-        await markInitialLoadComplete()
+        await markProcessPolledOnce()
     }
 
     // MARK: - File Polling
@@ -152,6 +154,7 @@ actor SessionStateManager {
         }
 
         await pushToStore()
+        await markFilePolledOnce()
     }
 
     // MARK: - Session Management
@@ -344,7 +347,18 @@ actor SessionStateManager {
         }
     }
 
-    private func markInitialLoadComplete() async {
+    private func markProcessPolledOnce() async {
+        processPolledOnce = true
+        await flushInitialLoadIfReady()
+    }
+
+    private func markFilePolledOnce() async {
+        filePolledOnce = true
+        await flushInitialLoadIfReady()
+    }
+
+    private func flushInitialLoadIfReady() async {
+        guard processPolledOnce && filePolledOnce else { return }
         await MainActor.run {
             if sessionStore.isInitialLoading {
                 sessionStore.isInitialLoading = false
