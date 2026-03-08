@@ -154,7 +154,8 @@ actor SessionStateManager {
             gitBranch: "unknown",
             lastAssistantText: "",
             status: .running,
-            lastUpdated: now
+            lastUpdated: now,
+            subagents: []
         )
 
         managed[sessionId] = ManagedSession(
@@ -216,7 +217,8 @@ actor SessionStateManager {
             gitBranch: snapshot.gitBranch,
             lastAssistantText: snapshot.lastAssistantText,
             status: newStatus,
-            lastUpdated: now
+            lastUpdated: now,
+            subagents: session.info.subagents
         )
 
         session.hasError = snapshot.hasError
@@ -301,7 +303,8 @@ actor SessionStateManager {
             gitBranch: info.gitBranch,
             lastAssistantText: info.lastAssistantText,
             status: status,
-            lastUpdated: lastUpdated
+            lastUpdated: lastUpdated,
+            subagents: info.subagents
         )
     }
 

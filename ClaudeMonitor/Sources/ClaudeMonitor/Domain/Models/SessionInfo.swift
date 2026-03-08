@@ -24,4 +24,5 @@ struct SessionInfo: Identifiable, Sendable, Hashable {
     let lastAssistantText: String
     let status: SessionStatus
     let lastUpdated: Date
+    let subagents: [SubagentInfo]
 }
