@@ -121,6 +121,7 @@ struct SessionStateManagerTests {
         sessionId: String = "test-session",
         gitBranch: String = "main",
         lastAssistantText: String = "Working on task",
+        isTextTruncated: Bool = false,
         lastModified: Date = Date(),
         hasError: Bool = false
     ) -> SessionSnapshot {
@@ -128,6 +129,7 @@ struct SessionStateManagerTests {
             sessionId: sessionId,
             gitBranch: gitBranch,
             lastAssistantText: lastAssistantText,
+            isTextTruncated: isTextTruncated,
             lastModified: lastModified,
             hasError: hasError
         )

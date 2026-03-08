@@ -76,11 +76,11 @@ struct SessionFileReaderTests {
         }
     }
 
-    // TC-10: prefix(100) applied
-    @Test("lastAssistantText truncated to 100 chars")
+    // TC-10: prefix(5000) applied
+    @Test("lastAssistantText truncated to 5000 chars")
     func prefixTruncation() async throws {
         let (projectDir, reader) = try setupProjectDir()
-        let longText = String(repeating: "a", count: 200)
+        let longText = String(repeating: "a", count: 8000)
         let content = """
         {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"\(longText)"}]},"stop_reason":"end_turn","sessionId":"s1","gitBranch":"main"}
         """
@@ -88,7 +88,8 @@ struct SessionFileReaderTests {
         try content.write(to: file, atomically: true, encoding: .utf8)
 
         let snapshot = try await reader.readLatestSession(projectDirectory: projectDir)
-        #expect(snapshot.lastAssistantText.count == 100)
+        #expect(snapshot.lastAssistantText.count == 5000)
+        #expect(snapshot.isTextTruncated == true)
     }
 
     // TC-11: stop_reason != end_turn → hasError

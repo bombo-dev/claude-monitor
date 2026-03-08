@@ -10,6 +10,7 @@ struct SessionSnapshot: Sendable, Hashable {
     let sessionId: String
     let gitBranch: String
     let lastAssistantText: String
+    let isTextTruncated: Bool
     let lastModified: Date
     let hasError: Bool
 }
@@ -22,6 +23,7 @@ struct SessionInfo: Identifiable, Sendable, Hashable {
     let projectPath: URL
     let gitBranch: String
     let lastAssistantText: String
+    let isTextTruncated: Bool
     let status: SessionStatus
     let lastUpdated: Date
     let subagents: [SubagentInfo]

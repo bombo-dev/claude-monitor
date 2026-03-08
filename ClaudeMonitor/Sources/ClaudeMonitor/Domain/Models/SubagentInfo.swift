@@ -5,6 +5,7 @@ struct SubagentInfo: Identifiable, Sendable, Hashable {
     let agentType: String
     let parentSessionId: String
     let lastAssistantText: String
+    let isTextTruncated: Bool
     let lastUpdated: Date
     let status: SessionStatus
 }
