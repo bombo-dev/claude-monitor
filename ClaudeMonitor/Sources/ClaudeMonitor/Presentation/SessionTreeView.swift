@@ -24,11 +24,6 @@ struct SessionTreeView: View {
             }
         }
         .frame(width: 220)
-        .onAppear {
-            for session in sessions where !session.subagents.isEmpty {
-                expandedSessions.insert(session.id)
-            }
-        }
     }
 
     // MARK: - Root Node

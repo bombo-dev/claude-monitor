@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PopoverView: View {
     @Bindable var viewModel: SessionListViewModel
+    var onOpenWindow: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,16 +93,26 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 12) {
+            Button {
+                onOpenWindow?()
+            } label: {
+                Label("윈도우로 열기", systemImage: "macwindow")
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
             Spacer()
-            Button("Claude Monitor 종료") {
+
+            Button("종료") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.plain)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(8)
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
     }
 }
