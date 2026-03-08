@@ -24,7 +24,9 @@ actor SessionStateManager {
     private var pendingRemovals: [PendingRemoval] = []
     private var previousPids: Set<Int> = []
     private var pidToSessionId: [Int: String] = [:]
-    private var dismissedSessionIds: Set<String> = []
+    private var dismissedSessionIds: Set<String> {
+        didSet { Self.saveDismissedIds(dismissedSessionIds) }
+    }
     private var processTask: Task<Void, Never>?
     private var fileTask: Task<Void, Never>?
 
@@ -50,6 +52,7 @@ actor SessionStateManager {
         self.processInterval = processInterval
         self.fileInterval = fileInterval
         self.idleThreshold = idleThreshold
+        self.dismissedSessionIds = Self.loadDismissedIds()
     }
 
     deinit {
@@ -356,6 +359,19 @@ actor SessionStateManager {
             lastUpdated: lastUpdated,
             subagents: info.subagents
         )
+    }
+
+    // MARK: - Persistence
+
+    private static let dismissedKey = "dismissedSessionIds"
+
+    private nonisolated static func loadDismissedIds() -> Set<String> {
+        let array = UserDefaults.standard.stringArray(forKey: dismissedKey) ?? []
+        return Set(array)
+    }
+
+    private nonisolated static func saveDismissedIds(_ ids: Set<String>) {
+        UserDefaults.standard.set(Array(ids), forKey: dismissedKey)
     }
 
     // MARK: - Test Helpers
