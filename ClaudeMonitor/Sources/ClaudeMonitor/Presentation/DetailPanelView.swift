@@ -43,7 +43,11 @@ struct DetailPanelView: View {
                     .font(.title3)
                     .fontWeight(.semibold)
                     .lineLimit(1)
+
+                statusBadge(status: session.status)
+
                 Spacer()
+
                 Button("Finder에서 보기") {
                     onOpenInFinder(session)
                 }
@@ -76,12 +80,7 @@ struct DetailPanelView: View {
                     .foregroundStyle(.red)
             } else if !session.lastAssistantText.isEmpty {
                 Divider().padding(.vertical, 4)
-                ScrollView {
-                    Text(session.lastAssistantText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                lastAssistantTextSection(text: session.lastAssistantText)
             }
         }
     }
@@ -111,24 +110,48 @@ struct DetailPanelView: View {
             // Last assistant text
             if !agent.lastAssistantText.isEmpty {
                 Divider().padding(.vertical, 4)
-                ScrollView {
-                    Text(agent.lastAssistantText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                lastAssistantTextSection(text: agent.lastAssistantText)
             }
+        }
+    }
+
+    // MARK: - Last Assistant Text
+
+    private func lastAssistantTextSection(text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("마지막 응답")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.secondary.opacity(0.05))
+            )
         }
     }
 
     // MARK: - Empty Selection
 
     private var emptySelection: some View {
-        VStack {
+        VStack(spacing: 8) {
             Spacer()
+            Image(systemName: "list.bullet.indent")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary)
             Text("항목을 선택하세요")
                 .font(.body)
                 .foregroundStyle(.secondary)
+            Text("세션을 선택하면 상세 정보가 표시됩니다.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             Spacer()
         }
         .frame(maxWidth: .infinity)

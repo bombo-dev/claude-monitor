@@ -13,7 +13,7 @@ struct SessionTreeView: View {
 
                     if expandedSessions.contains(session.id) {
                         ForEach(session.subagents) { agent in
-                            childNode(agent: agent, sessionId: session.id)
+                            childNode(agent: agent, session: session)
                         }
                     }
 
@@ -25,7 +25,6 @@ struct SessionTreeView: View {
         }
         .frame(width: 220)
         .onAppear {
-            // Initially expand all sessions that have subagents
             for session in sessions where !session.subagents.isEmpty {
                 expandedSessions.insert(session.id)
             }
@@ -37,7 +36,7 @@ struct SessionTreeView: View {
     private func rootNode(session: SessionInfo) -> some View {
         let isSelected = selection == .session(id: session.id)
 
-        return HStack(alignment: .top, spacing: 6) {
+        return HStack(alignment: .top, spacing: 8) {
             // Chevron
             if session.subagents.isEmpty {
                 Color.clear.frame(width: 16, height: 16)
@@ -49,31 +48,37 @@ struct SessionTreeView: View {
                     .frame(width: 16, height: 16)
             }
 
-            // Status indicator (AC-17: rollup)
-            Circle()
-                .fill(rootStatusColor(session: session))
-                .frame(width: 8, height: 8)
-                .padding(.top, 4)
+            // SF Symbol status icon
+            Image(systemName: statusSymbol(for: rootStatus(session: session)))
+                .font(.system(size: 14))
+                .foregroundStyle(rootStatusColor(session: session))
+                .frame(width: 16, height: 16)
 
-            // Text
+            // Text + relative time
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.projectName)
                     .font(.body)
                     .fontWeight(.medium)
                     .lineLimit(1)
 
-                Text(session.tty)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+                HStack {
+                    Text(session.tty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
 
-            Spacer()
+                    Spacer()
+
+                    Text(relativeTime(from: session.lastUpdated))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.leading, 10)
         .padding(.trailing, 8)
-        .padding(.vertical, 8)
-        .frame(minHeight: 40)
+        .padding(.vertical, 10)
+        .frame(minHeight: 48)
         .background(
             isSelected
                 ? RoundedRectangle(cornerRadius: 6)
@@ -98,13 +103,15 @@ struct SessionTreeView: View {
 
     // MARK: - Child Node
 
-    private func childNode(agent: SubagentInfo, sessionId: String) -> some View {
-        let isSelected = selection == .subagent(sessionId: sessionId, agentId: agent.id)
+    private func childNode(agent: SubagentInfo, session: SessionInfo) -> some View {
+        let isSelected = selection == .subagent(sessionId: session.id, agentId: agent.id)
 
-        return HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor(for: agent.status))
-                .frame(width: 6, height: 6)
+        return HStack(spacing: 8) {
+            // SF Symbol status icon
+            Image(systemName: statusSymbol(for: agent.status))
+                .font(.system(size: 12))
+                .foregroundStyle(statusColor(for: agent.status))
+                .frame(width: 14, height: 14)
 
             Text(displayName(for: agent.agentType))
                 .font(.caption)
@@ -112,7 +119,7 @@ struct SessionTreeView: View {
 
             Spacer()
         }
-        .padding(.leading, 26)
+        .padding(.leading, 32)
         .padding(.trailing, 8)
         .padding(.vertical, 6)
         .frame(minHeight: 28)
@@ -123,20 +130,30 @@ struct SessionTreeView: View {
                     .padding(.horizontal, 4)
                 : nil
         )
+        .overlay(alignment: .leading) {
+            // Guide line
+            Rectangle()
+                .fill(rootStatusColor(session: session).opacity(0.45))
+                .frame(width: 1.5)
+                .padding(.leading, 19)
+        }
         .contentShape(Rectangle())
         .onTapGesture {
-            selection = .subagent(sessionId: sessionId, agentId: agent.id)
+            selection = .subagent(sessionId: session.id, agentId: agent.id)
         }
     }
 
     // MARK: - Helpers
 
-    private func rootStatusColor(session: SessionInfo) -> Color {
-        // AC-17: subagent error rollup
+    private func rootStatus(session: SessionInfo) -> SessionStatus {
         if session.subagents.contains(where: { $0.status == .error }) {
-            return .red
+            return .error
         }
-        return statusColor(for: session.status)
+        return session.status
+    }
+
+    private func rootStatusColor(session: SessionInfo) -> Color {
+        statusColor(for: rootStatus(session: session))
     }
 
     private func statusColor(for status: SessionStatus) -> Color {
@@ -148,11 +165,26 @@ struct SessionTreeView: View {
         }
     }
 
+    private func statusSymbol(for status: SessionStatus) -> String {
+        switch status {
+        case .running: "circle.fill"
+        case .idle: "pause.circle.fill"
+        case .completed: "checkmark.circle.fill"
+        case .error, .fileReadError: "exclamationmark.circle.fill"
+        }
+    }
+
     private func displayName(for agentType: String) -> String {
         if agentType == "unknown" { return "Agent" }
         if let colonIndex = agentType.lastIndex(of: ":") {
             return String(agentType[agentType.index(after: colonIndex)...])
         }
         return agentType
+    }
+
+    private func relativeTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }

@@ -24,7 +24,7 @@ struct MainWindowView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 8) {
             Image(systemName: "terminal.fill")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
