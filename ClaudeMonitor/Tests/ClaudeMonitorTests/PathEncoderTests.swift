@@ -69,4 +69,27 @@ struct PathEncoderTests {
         let second = encoder.projectDirectory(for: "/Users/bombo/foo")
         #expect(first == second)
     }
+
+    // MARK: - 언더스코어 인코딩 (Issue #49)
+
+    @Test("TC-12: 언더스코어 단일 포함 경로")
+    func encodePathWithSingleUnderscore() {
+        #expect(encoder.encode(path: "/Users/bombo/my_project") == "-Users-bombo-my-project")
+    }
+
+    @Test("TC-13: 언더스코어 다중 포함 경로")
+    func encodePathWithMultipleUnderscores() {
+        #expect(encoder.encode(path: "/Users/bombo/Documents/000_PRIVATE/999_PROJECT/003-CLAUDE-MONITOR") == "-Users-bombo-Documents-000-PRIVATE-999-PROJECT-003-CLAUDE-MONITOR")
+    }
+
+    @Test("TC-14: 하이픈+언더스코어 혼합 경로")
+    func encodePathWithHyphenAndUnderscore() {
+        #expect(encoder.encode(path: "/Users/test/my-app_v2") == "-Users-test-my-app-v2")
+    }
+
+    @Test("TC-15: projectDirectory 언더스코어 경로 조합")
+    func projectDirectoryWithUnderscore() throws {
+        let result = try #require(encoder.projectDirectory(for: "/Users/bombo/my_project"))
+        #expect(result.path().hasSuffix(".claude/projects/-Users-bombo-my-project/"))
+    }
 }

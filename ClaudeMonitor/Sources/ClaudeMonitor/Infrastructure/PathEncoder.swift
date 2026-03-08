@@ -12,7 +12,9 @@ struct PathEncoder: Sendable {
         let normalized = URL(fileURLWithPath: path).standardized.path
         let collapsed = normalized.split(separator: "/").joined(separator: "/")
         let withLeadingSlash = normalized.hasPrefix("/") ? "/" + collapsed : collapsed
-        return withLeadingSlash.replacingOccurrences(of: "/", with: "-")
+        return withLeadingSlash
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
     }
 
     func projectDirectory(for path: String) -> URL? {
