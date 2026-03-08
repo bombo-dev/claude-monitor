@@ -5,6 +5,13 @@ import AppKit
 final class SessionListViewModel {
     private let store: SessionStore
 
+    enum Selection: Hashable {
+        case session(id: String)
+        case subagent(sessionId: String, agentId: String)
+    }
+
+    var selection: Selection?
+
     init(store: SessionStore) {
         self.store = store
     }
@@ -17,8 +24,19 @@ final class SessionListViewModel {
         store.sessions.filter { $0.status == .running || $0.status == .idle }.count
     }
 
+    // AC-17: hasError includes subagent error rollup
     var hasError: Bool {
-        store.sessions.contains { $0.status == .error || $0.status == .fileReadError }
+        store.sessions.contains { session in
+            session.status == .error
+                || session.status == .fileReadError
+                || session.subagents.contains { $0.status == .error }
+        }
+    }
+
+    // AC-20: auto-select most recently updated session
+    func selectInitialIfNeeded() {
+        guard selection == nil, let first = store.sessions.first else { return }
+        selection = .session(id: first.id)
     }
 
     func openInFinder(session: SessionInfo) {
