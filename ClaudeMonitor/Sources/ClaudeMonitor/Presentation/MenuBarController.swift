@@ -7,6 +7,7 @@ final class MenuBarController {
     private let popover = NSPopover()
     private let viewModel: SessionListViewModel
     private let mainWindowController: MainWindowController
+    private var rightClickMonitor: Any?
 
     init(viewModel: SessionListViewModel, mainWindowController: MainWindowController) {
         self.viewModel = viewModel
@@ -23,12 +24,27 @@ final class MenuBarController {
             )
             button.image = image
             button.imagePosition = .imageLeading
-            button.sendAction(on: [.leftMouseUp, .rightMouseDown])
-            button.action = #selector(handleClick(_:))
+            button.action = #selector(handleLeftClick(_:))
             button.target = self
         }
 
         statusItem = item
+
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) {
+            [weak self] event in
+            guard let self,
+                  let button = self.statusItem?.button,
+                  let window = button.window,
+                  window == event.window else {
+                return event
+            }
+            let locationInButton = button.convert(event.locationInWindow, from: nil)
+            if button.bounds.contains(locationInButton) {
+                self.showContextMenu()
+                return nil
+            }
+            return event
+        }
 
         let hostingView = NSHostingController(rootView: PopoverView(viewModel: viewModel))
         popover.contentViewController = hostingView
@@ -39,14 +55,8 @@ final class MenuBarController {
         startObserving()
     }
 
-    @objc private func handleClick(_ sender: NSStatusBarButton) {
-        guard let event = NSApp.currentEvent else { return }
-
-        if event.type == .rightMouseDown {
-            showContextMenu()
-        } else {
-            togglePopover()
-        }
+    @objc private func handleLeftClick(_ sender: NSStatusBarButton) {
+        togglePopover()
     }
 
     private func togglePopover() {
