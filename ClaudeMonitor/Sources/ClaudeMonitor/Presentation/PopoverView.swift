@@ -17,7 +17,6 @@ struct PopoverView: View {
             Divider()
             footer
         }
-        .frame(width: 680, height: 460)
         .onAppear {
             viewModel.selectInitialIfNeeded()
         }

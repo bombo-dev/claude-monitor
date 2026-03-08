@@ -6,9 +6,11 @@ final class MenuBarController {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let viewModel: SessionListViewModel
+    private let mainWindowController: MainWindowController
 
-    init(viewModel: SessionListViewModel) {
+    init(viewModel: SessionListViewModel, mainWindowController: MainWindowController) {
         self.viewModel = viewModel
+        self.mainWindowController = mainWindowController
     }
 
     func setup() {
@@ -21,7 +23,8 @@ final class MenuBarController {
             )
             button.image = image
             button.imagePosition = .imageLeading
-            button.action = #selector(togglePopover)
+            button.sendAction(on: [.leftMouseUp, .rightMouseDown])
+            button.action = #selector(handleClick(_:))
             button.target = self
         }
 
@@ -36,7 +39,17 @@ final class MenuBarController {
         startObserving()
     }
 
-    @objc private func togglePopover() {
+    @objc private func handleClick(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { return }
+
+        if event.type == .rightMouseDown {
+            showContextMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
+    private func togglePopover() {
         guard let button = statusItem?.button else { return }
 
         if popover.isShown {
@@ -45,6 +58,43 @@ final class MenuBarController {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    private func showContextMenu() {
+        let menu = NSMenu()
+
+        let openWindowItem = NSMenuItem(
+            title: "윈도우로 열기",
+            action: #selector(openWindow),
+            keyEquivalent: ""
+        )
+        openWindowItem.target = self
+        menu.addItem(openWindowItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(
+            title: "종료",
+            action: #selector(quitApp),
+            keyEquivalent: ""
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        statusItem?.menu = menu
+        statusItem?.button?.performClick(nil)
+        statusItem?.menu = nil
+    }
+
+    @objc private func openWindow() {
+        if popover.isShown {
+            popover.performClose(nil)
+        }
+        mainWindowController.openOrFocus()
+    }
+
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 
     private func updateIcon() {
