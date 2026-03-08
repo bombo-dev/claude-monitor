@@ -11,6 +11,10 @@ enum AppStatus: Sendable {
 final class SessionListViewModel {
     private let store: SessionStore
     private let stateManager: SessionStateManager
+    private var refreshTimer: Timer?
+
+    // Incremented every 10s to force SwiftUI re-render (updates relative timestamps)
+    var refreshTick: UInt64 = 0
 
     enum Selection: Hashable {
         case session(id: String)
@@ -22,10 +26,13 @@ final class SessionListViewModel {
     init(store: SessionStore, stateManager: SessionStateManager) {
         self.store = store
         self.stateManager = stateManager
+        startRefreshTimer()
     }
 
     var sessions: [SessionInfo] {
-        store.sessions
+        // Reference refreshTick so SwiftUI re-renders when it changes
+        _ = refreshTick
+        return store.sessions
     }
 
     var activeCount: Int {
@@ -62,6 +69,14 @@ final class SessionListViewModel {
     func selectInitialIfNeeded() {
         guard selection == nil, let first = store.sessions.first else { return }
         selection = .session(id: first.id)
+    }
+
+    private func startRefreshTimer() {
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshTick &+= 1
+            }
+        }
     }
 
     func openInFinder(session: SessionInfo) {
