@@ -112,6 +112,7 @@ actor SessionStateManager {
 
         previousPids = currentPids
         await pushToStore()
+        await markInitialLoadComplete()
     }
 
     // MARK: - File Polling
@@ -340,6 +341,14 @@ actor SessionStateManager {
 
         await MainActor.run {
             sessionStore.sessions = sortedSessions
+        }
+    }
+
+    private func markInitialLoadComplete() async {
+        await MainActor.run {
+            if sessionStore.isInitialLoading {
+                sessionStore.isInitialLoading = false
+            }
         }
     }
 
