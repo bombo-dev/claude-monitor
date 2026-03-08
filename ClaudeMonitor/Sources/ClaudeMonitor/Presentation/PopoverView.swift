@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PopoverView: View {
-    let viewModel: SessionListViewModel
+    @Bindable var viewModel: SessionListViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,13 +11,16 @@ struct PopoverView: View {
             if viewModel.sessions.isEmpty {
                 emptyState
             } else {
-                sessionList
+                contentArea
             }
 
             Divider()
             footer
         }
-        .frame(width: 320, height: 400)
+        .frame(width: 680, height: 460)
+        .onAppear {
+            viewModel.selectInitialIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -43,19 +46,22 @@ struct PopoverView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var sessionList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(viewModel.sessions) { session in
-                    SessionCardView(session: session) {
-                        viewModel.openInFinder(session: session)
-                    }
+    private var contentArea: some View {
+        HStack(spacing: 0) {
+            SessionTreeView(
+                sessions: viewModel.sessions,
+                selection: $viewModel.selection
+            )
 
-                    if session.id != viewModel.sessions.last?.id {
-                        Divider().padding(.leading, 30)
-                    }
+            Divider()
+
+            DetailPanelView(
+                sessions: viewModel.sessions,
+                selection: viewModel.selection,
+                onOpenInFinder: { session in
+                    viewModel.openInFinder(session: session)
                 }
-            }
+            )
         }
     }
 

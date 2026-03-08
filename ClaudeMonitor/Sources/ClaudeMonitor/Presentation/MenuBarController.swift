@@ -29,7 +29,7 @@ final class MenuBarController {
 
         let hostingView = NSHostingController(rootView: PopoverView(viewModel: viewModel))
         popover.contentViewController = hostingView
-        popover.contentSize = NSSize(width: 320, height: 400)
+        popover.contentSize = NSSize(width: 680, height: 460)
         popover.behavior = .transient
 
         updateIcon()
