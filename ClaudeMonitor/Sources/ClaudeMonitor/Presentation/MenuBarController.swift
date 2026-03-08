@@ -45,7 +45,7 @@ final class MenuBarController {
         startObserving()
     }
 
-    @objc private func togglePopover() {
+    @objc func togglePopover() {
         guard let button = statusItem?.button else { return }
 
         if popover.isShown {
@@ -77,6 +77,18 @@ final class MenuBarController {
         }
 
         button.contentTintColor = color
+        updateDockBadge()
+    }
+
+    private func updateDockBadge() {
+        let dockTile = NSApp.dockTile
+        if viewModel.hasError {
+            dockTile.badgeLabel = "!"
+        } else if viewModel.activeCount > 0 {
+            dockTile.badgeLabel = "\(viewModel.activeCount)"
+        } else {
+            dockTile.badgeLabel = nil
+        }
     }
 
     private func startObserving() {

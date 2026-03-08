@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        menuBarController?.togglePopover()
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         let mgr = manager
         Task { await mgr?.stop() }
