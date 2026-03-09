@@ -245,6 +245,15 @@ actor SessionStateManager {
 
         let statusChanged = newStatus != session.info.status
 
+        // Preserve existing assistant text when snapshot has no text
+        // (e.g. during subagent spawning, last 16KB may only contain tool_use entries)
+        let effectiveText = snapshot.lastAssistantText.isEmpty
+            ? session.info.lastAssistantText
+            : snapshot.lastAssistantText
+        let effectiveTruncated = snapshot.lastAssistantText.isEmpty
+            ? session.info.isTextTruncated
+            : snapshot.isTextTruncated
+
         session.info = SessionInfo(
             id: session.info.id,
             pid: session.info.pid,
@@ -252,8 +261,8 @@ actor SessionStateManager {
             projectName: session.info.projectName,
             projectPath: session.info.projectPath,
             gitBranch: snapshot.gitBranch,
-            lastAssistantText: snapshot.lastAssistantText,
-            isTextTruncated: snapshot.isTextTruncated,
+            lastAssistantText: effectiveText,
+            isTextTruncated: effectiveTruncated,
             status: newStatus,
             lastUpdated: now,
             subagents: session.info.subagents
