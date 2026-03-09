@@ -2,6 +2,8 @@
 
 A lightweight macOS menu bar app that monitors active [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI sessions in real time.
 
+![Claude Monitor Screenshot](assets/image.png)
+
 ## Features
 
 - **Menu Bar Integration** — Lives in your menu bar with a status indicator; click to see all active sessions
