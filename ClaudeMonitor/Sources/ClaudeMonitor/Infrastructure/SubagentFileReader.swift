@@ -91,8 +91,14 @@ actor SubagentFileReader {
         let readSize = min(fileSize, 16 * 1024)
         try? handle.seek(toOffset: fileSize - readSize)
 
-        let data = handle.readData(ofLength: Int(readSize))
-        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        var data = handle.readData(ofLength: Int(readSize))
+
+        // Trim leading UTF-8 continuation bytes to find a valid character boundary
+        while !data.isEmpty && data[data.startIndex] & 0xC0 == 0x80 {
+            data = data.dropFirst()
+        }
+
+        guard let text = String(data: Data(data), encoding: .utf8) else { return nil }
 
         let lines = text.split(separator: "\n").reversed()
 

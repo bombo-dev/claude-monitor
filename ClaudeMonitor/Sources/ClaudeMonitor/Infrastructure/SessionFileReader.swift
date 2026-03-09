@@ -75,8 +75,16 @@ actor SessionFileReader: SessionFileReaderProtocol {
         let readSize = min(fileSize, 16 * 1024)
         try handle.seek(toOffset: fileSize - readSize)
 
-        let data = handle.readData(ofLength: Int(readSize))
-        guard let text = String(data: data, encoding: .utf8) else {
+        var data = handle.readData(ofLength: Int(readSize))
+
+        // When reading from an arbitrary offset, we may split a multi-byte
+        // UTF-8 character. Trim up to 3 leading continuation bytes (10xxxxxx)
+        // to find a valid character boundary.
+        while !data.isEmpty && data[data.startIndex] & 0xC0 == 0x80 {
+            data = data.dropFirst()
+        }
+
+        guard let text = String(data: Data(data), encoding: .utf8) else {
             throw SessionFileError.encodingError
         }
         return text
