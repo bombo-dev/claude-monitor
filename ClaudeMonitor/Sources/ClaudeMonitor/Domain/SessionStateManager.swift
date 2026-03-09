@@ -39,7 +39,7 @@ actor SessionStateManager {
         pathEncoder: PathEncoder = PathEncoder(),
         clock: @escaping @Sendable () -> Date = { Date() },
         processInterval: Duration = .seconds(10),
-        fileInterval: Duration = .seconds(30),
+        fileInterval: Duration = .seconds(5),
         idleThreshold: TimeInterval = 5 * 60
     ) {
         self.sessionStore = store
