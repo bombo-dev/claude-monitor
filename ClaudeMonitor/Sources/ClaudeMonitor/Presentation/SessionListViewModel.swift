@@ -11,6 +11,7 @@ enum AppStatus: Sendable {
 final class SessionListViewModel {
     private let store: SessionStore
     private let stateManager: SessionStateManager
+    let aliasStore: SessionAliasStore
     private var refreshTimer: Timer?
 
     // Incremented every 10s to force SwiftUI re-render (updates relative timestamps)
@@ -23,10 +24,19 @@ final class SessionListViewModel {
 
     var selection: Selection?
 
-    init(store: SessionStore, stateManager: SessionStateManager) {
+    init(store: SessionStore, stateManager: SessionStateManager, aliasStore: SessionAliasStore = SessionAliasStore()) {
         self.store = store
         self.stateManager = stateManager
+        self.aliasStore = aliasStore
         startRefreshTimer()
+    }
+
+    func alias(for sessionId: String) -> String? {
+        aliasStore.alias(for: sessionId)
+    }
+
+    func saveAlias(_ alias: String, for sessionId: String) {
+        aliasStore.setAlias(alias, for: sessionId)
     }
 
     var sessions: [SessionInfo] {

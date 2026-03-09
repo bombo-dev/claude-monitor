@@ -77,7 +77,9 @@ struct MainWindowView: View {
         HStack(spacing: 0) {
             SessionTreeView(
                 sessions: viewModel.sessions,
-                selection: $selection
+                selection: $selection,
+                aliasResolver: { viewModel.alias(for: $0) },
+                aliasSaver: { sessionId, alias in viewModel.saveAlias(alias, for: sessionId) }
             )
 
             Divider()

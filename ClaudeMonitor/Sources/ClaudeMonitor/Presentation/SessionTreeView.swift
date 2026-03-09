@@ -3,7 +3,11 @@ import SwiftUI
 struct SessionTreeView: View {
     let sessions: [SessionInfo]
     @Binding var selection: SessionListViewModel.Selection?
+    let aliasResolver: (String) -> String?
+    let aliasSaver: (String, String) -> Void
     @State private var expandedSessions: Set<String> = []
+    @State private var editingSessionId: String?
+    @State private var editingText: String = ""
 
     var body: some View {
         ScrollView {
@@ -68,10 +72,16 @@ struct SessionTreeView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                             .lineLimit(1)
+                    } else if editingSessionId == session.id {
+                        AliasEditField(
+                            text: $editingText,
+                            onCommit: { commitEdit(for: session.id) },
+                            onCancel: { cancelEdit() }
+                        )
                     } else {
-                        Text(session.tty)
+                        Text(aliasResolver(session.id) ?? session.tty)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(aliasResolver(session.id) != nil ? .primary : .secondary)
                             .lineLimit(1)
                     }
 
@@ -97,7 +107,12 @@ struct SessionTreeView: View {
                 : nil
         )
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onTapGesture(count: 2) {
+            guard !isSessionDataLoading(session) else { return }
+            if case .fileReadError = session.status { return }
+            startEdit(for: session)
+        }
+        .onTapGesture(count: 1) {
             selection = .session(id: session.id)
             if !session.subagents.isEmpty {
                 withAnimation(.easeInOut(duration: 0.15)) {
@@ -212,5 +227,48 @@ struct SessionTreeView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    // MARK: - Alias Editing
+
+    private func startEdit(for session: SessionInfo) {
+        editingText = aliasResolver(session.id) ?? session.tty
+        editingSessionId = session.id
+    }
+
+    private func commitEdit(for sessionId: String) {
+        aliasSaver(sessionId, editingText)
+        editingSessionId = nil
+        editingText = ""
+    }
+
+    private func cancelEdit() {
+        editingSessionId = nil
+        editingText = ""
+    }
+}
+
+// MARK: - AliasEditField
+
+private struct AliasEditField: View {
+    @Binding var text: String
+    let onCommit: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("별칭 입력", text: $text)
+            .font(.caption)
+            .textFieldStyle(.plain)
+            .focused($isFocused)
+            .onSubmit { onCommit() }
+            .onKeyPress(.escape) {
+                onCancel()
+                return .handled
+            }
+            .onChange(of: isFocused) { _, newValue in
+                if !newValue { onCommit() }
+            }
+            .onAppear { isFocused = true }
     }
 }
