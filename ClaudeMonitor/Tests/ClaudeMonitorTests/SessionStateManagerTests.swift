@@ -59,6 +59,12 @@ final class MockNotificationService: NotificationServiceProtocol, @unchecked Sen
         defer { lock.unlock() }
         return _notifications
     }
+
+    var notificationCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _notifications.count
+    }
 }
 
 // Thread-safe mutable clock for tests
@@ -155,15 +161,22 @@ struct SessionStateManagerTests {
     @Test("PID terminated without error marks completed and notifies")
     func pidTerminatedNoError() async {
         let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
         let notifService = MockNotificationService()
-        let (manager, store, _, _, _) = await makeSut(scanner: scanner, notificationService: notifService)
+        let (manager, store, _, _, _) = await makeSut(
+            scanner: scanner, fileReader: fileReader, notificationService: notifService
+        )
 
-        await scanner.setScanResults([
-            [makeProc()],
-            []
-        ])
+        let proc = makeProc()
+        await scanner.setScanResults([[proc], []])
+
+        let pathEncoder = makePathEncoder()
+        if let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) {
+            await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
+        }
 
         await manager.pollProcessesOnce()
+        await manager.pollFilesOnce() // Load data so hasEverLoadedData = true
         await manager.pollProcessesOnce()
 
         let sessions = await store.sessions
@@ -213,16 +226,22 @@ struct SessionStateManagerTests {
     @Test("Completed session removed after 30 seconds")
     func completedSessionRemovedAfter30s() async {
         let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
         let testClock = TestClock()
-        let (manager, store, _, _, _) = await makeSut(scanner: scanner, testClock: testClock)
+        let (manager, store, _, _, _) = await makeSut(
+            scanner: scanner, fileReader: fileReader, testClock: testClock
+        )
 
-        await scanner.setScanResults([
-            [makeProc()],
-            [],
-            []
-        ])
+        let proc = makeProc()
+        await scanner.setScanResults([[proc], [], []])
+
+        let pathEncoder = makePathEncoder()
+        if let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) {
+            await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
+        }
 
         await manager.pollProcessesOnce()
+        await manager.pollFilesOnce() // Load data so hasEverLoadedData = true
         await manager.pollProcessesOnce()
 
         var sessions = await store.sessions
@@ -278,9 +297,50 @@ struct SessionStateManagerTests {
         #expect(sessions.isEmpty)
     }
 
-    // TC-SSM-07: JSONL read failure → fileReadError
-    @Test("JSONL read failure sets fileReadError status")
+    // TC-SSM-07: JSONL read failure → fileReadError after threshold (for sessions with prior data)
+    @Test("JSONL read failure sets fileReadError status after consecutive failures")
     func jsonlReadFailureSetsFileReadError() async {
+        let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner, fileReader: fileReader)
+
+        let proc = makeProc()
+        await scanner.setScanResults([[proc]])
+
+        let pathEncoder = makePathEncoder()
+        guard let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) else {
+            Issue.record("Failed to create project directory")
+            return
+        }
+
+        // First: load data successfully (so hasEverLoadedData = true)
+        await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        // Now start failing
+        await fileReader.setResult(for: projectDir, result: .failure(SessionFileError.noJsonlFile))
+
+        // First failure — should stay running
+        await manager.pollFilesOnce()
+        var sessions = await store.sessions
+        #expect(sessions.count == 1)
+        #expect(sessions[0].status == .running)
+
+        // Second failure — should still stay running
+        await manager.pollFilesOnce()
+        sessions = await store.sessions
+        #expect(sessions[0].status == .running)
+
+        // Third failure — should transition to fileReadError
+        await manager.pollFilesOnce()
+        sessions = await store.sessions
+        #expect(sessions[0].status == .fileReadError(reason: .noJsonlFile))
+    }
+
+    // TC-SSM-07b: Session that never loaded data stays running on read failures
+    @Test("Session without prior data never shows fileReadError")
+    func sessionWithoutDataNeverShowsFileReadError() async {
         let scanner = MockProcessScanner()
         let fileReader = MockSessionFileReader()
         let (manager, store, _, _, _) = await makeSut(scanner: scanner, fileReader: fileReader)
@@ -297,11 +357,88 @@ struct SessionStateManagerTests {
         }
 
         await manager.pollProcessesOnce()
-        await manager.pollFilesOnce()
+
+        // Even after many failures, stays running (never loaded data)
+        for _ in 0..<10 {
+            await manager.pollFilesOnce()
+        }
 
         let sessions = await store.sessions
         #expect(sessions.count == 1)
-        #expect(sessions[0].status == .fileReadError(reason: .noJsonlFile))
+        #expect(sessions[0].status == .running)
+    }
+
+    // TC-SSM-07c: Session without data is silently removed on termination
+    @Test("Session without data is silently removed on termination")
+    func sessionWithoutDataRemovedSilentlyOnTermination() async {
+        let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
+        let notificationService = MockNotificationService()
+        let (manager, store, _, _, _) = await makeSut(
+            scanner: scanner, fileReader: fileReader, notificationService: notificationService
+        )
+
+        let proc = makeProc()
+        await scanner.setScanResults([[proc]])
+
+        let pathEncoder = makePathEncoder()
+        if let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) {
+            await fileReader.setResult(
+                for: projectDir,
+                result: .failure(SessionFileError.noJsonlFile)
+            )
+        }
+
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        // Process terminates
+        await scanner.setScanResults([[]])
+        await manager.pollProcessesOnce()
+
+        // Session removed immediately, no notification
+        let sessions = await store.sessions
+        #expect(sessions.isEmpty)
+        #expect(notificationService.notificationCount == 0)
+    }
+
+    // TC-SSM-07d: Successful read resets failure counter
+    @Test("Successful read resets consecutive failure counter")
+    func successfulReadResetsFailureCounter() async {
+        let scanner = MockProcessScanner()
+        let fileReader = MockSessionFileReader()
+        let (manager, store, _, _, _) = await makeSut(scanner: scanner, fileReader: fileReader)
+
+        let proc = makeProc()
+        await scanner.setScanResults([[proc]])
+
+        let pathEncoder = makePathEncoder()
+        guard let projectDir = pathEncoder.projectDirectory(for: proc.cwd!) else {
+            Issue.record("Failed to create project directory")
+            return
+        }
+
+        // Load data first
+        await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
+        await manager.pollProcessesOnce()
+        await manager.pollFilesOnce()
+
+        // Two failures (below threshold)
+        await fileReader.setResult(for: projectDir, result: .failure(SessionFileError.noJsonlFile))
+        await manager.pollFilesOnce()
+        await manager.pollFilesOnce()
+
+        // Success resets counter
+        await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
+        await manager.pollFilesOnce()
+
+        // Two more failures — should still be running (counter was reset)
+        await fileReader.setResult(for: projectDir, result: .failure(SessionFileError.noJsonlFile))
+        await manager.pollFilesOnce()
+        await manager.pollFilesOnce()
+
+        let sessions = await store.sessions
+        #expect(sessions[0].status == .running)
     }
 
     // TC-SSM-08: fileReadError → running on successful read
@@ -320,15 +457,21 @@ struct SessionStateManagerTests {
             return
         }
 
-        // First: fail
-        await fileReader.setResult(for: projectDir, result: .failure(SessionFileError.noJsonlFile))
+        // First load data, then fail
+        await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
         await manager.pollProcessesOnce()
         await manager.pollFilesOnce()
+
+        // Fail enough times to reach fileReadError
+        await fileReader.setResult(for: projectDir, result: .failure(SessionFileError.noJsonlFile))
+        for _ in 0..<SessionStateManager.fileReadErrorThreshold {
+            await manager.pollFilesOnce()
+        }
 
         var sessions = await store.sessions
         #expect(sessions[0].status == .fileReadError(reason: .noJsonlFile))
 
-        // Second: succeed
+        // Succeed → recover to running
         await fileReader.setResult(for: projectDir, result: .success(makeSnapshot()))
         await manager.pollFilesOnce()
 

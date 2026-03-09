@@ -7,7 +7,11 @@ actor SessionStateManager {
         let processInfo: ClaudeProcessInfo
         var enteredCurrentStatusAt: Date
         var hasError: Bool = false
+        var consecutiveFileReadFailures: Int = 0
+        var hasEverLoadedData: Bool = false
     }
+
+    static let fileReadErrorThreshold = 3
 
     private let sessionStore: SessionStore
     private let processScanner: any ProcessScannerProtocol
@@ -158,8 +162,14 @@ actor SessionStateManager {
     private func addSession(from proc: ClaudeProcessInfo) {
         guard let cwd = proc.cwd else { return }
 
+        // Skip if another session with the same project path already exists
+        // (subagent processes share the parent's cwd)
+        let projectPath = URL(fileURLWithPath: cwd)
+        let alreadyTracked = managed.values.contains { $0.info.projectPath == projectPath }
+        guard !alreadyTracked else { return }
+
         let now = clock()
-        let projectName = URL(fileURLWithPath: cwd).lastPathComponent
+        let projectName = projectPath.lastPathComponent
         let sessionId = "\(proc.pid)-\(proc.tty)"
 
         guard !dismissedSessionIds.contains(sessionId) else { return }
@@ -192,6 +202,13 @@ actor SessionStateManager {
         else { return }
 
         let now = clock()
+
+        // Sessions that never loaded data (e.g. subagent processes) — remove silently
+        if !session.hasEverLoadedData {
+            managed.removeValue(forKey: sessionId)
+            pidToSessionId.removeValue(forKey: pid)
+            return
+        }
 
         if session.hasError {
             session.info = rebuildInfo(session.info, status: .error, lastUpdated: now)
@@ -243,6 +260,8 @@ actor SessionStateManager {
         )
 
         session.hasError = snapshot.hasError
+        session.consecutiveFileReadFailures = 0
+        session.hasEverLoadedData = true
 
         if statusChanged {
             session.enteredCurrentStatusAt = now
@@ -277,9 +296,22 @@ actor SessionStateManager {
     private func markFileReadError(sessionId: String, now: Date, reason: FileReadErrorReason) {
         guard var session = managed[sessionId] else { return }
 
-        // Only transition to fileReadError from running or idle
+        session.consecutiveFileReadFailures += 1
+
+        // Never show fileReadError for sessions that have never loaded data
+        // (likely subagent processes without their own JSONL files)
+        guard session.hasEverLoadedData else {
+            managed[sessionId] = session
+            return
+        }
+
+        // Only transition to fileReadError after consecutive failures exceed threshold
         switch session.info.status {
         case .running, .idle:
+            guard session.consecutiveFileReadFailures >= Self.fileReadErrorThreshold else {
+                managed[sessionId] = session
+                return
+            }
             session.info = rebuildInfo(session.info, status: .fileReadError(reason: reason), lastUpdated: now)
             session.enteredCurrentStatusAt = now
             managed[sessionId] = session

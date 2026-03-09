@@ -121,7 +121,9 @@ actor SessionFileReader: SessionFileReaderProtocol {
 
             let stopReason = json["stop_reason"] as? String
                 ?? (message["stop_reason"] as? String)
-            let hasError = (stopReason != nil) && (stopReason != "end_turn")
+            let hasError = (stopReason != nil)
+                && stopReason != "end_turn"
+                && stopReason != "tool_use"
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path())
             let lastModified = (attrs?[.modificationDate] as? Date) ?? Date()
@@ -136,6 +138,18 @@ actor SessionFileReader: SessionFileReaderProtocol {
             )
         }
 
-        throw SessionFileError.noAssistantMessage
+        // No assistant message found in tail — return partial snapshot
+        // (common during heavy tool use when last 16KB has no assistant text)
+        let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path())
+        let lastModified = (attrs?[.modificationDate] as? Date) ?? Date()
+
+        return SessionSnapshot(
+            sessionId: sessionId ?? "unknown",
+            gitBranch: gitBranch ?? "unknown",
+            lastAssistantText: "",
+            isTextTruncated: false,
+            lastModified: lastModified,
+            hasError: false
+        )
     }
 }

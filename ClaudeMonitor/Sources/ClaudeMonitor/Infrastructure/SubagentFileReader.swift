@@ -102,7 +102,6 @@ actor SubagentFileReader {
         var lastUpdated: Date?
         var foundAssistant = false
         var hasError = false
-        var hasEndTurn = false
 
         for line in lines {
             guard let jsonData = line.data(using: .utf8),
@@ -120,9 +119,6 @@ actor SubagentFileReader {
             let stopReason = (json["message"] as? [String: Any])?["stop_reason"] as? String
             if stopReason != nil && stopReason != "end_turn" && stopReason != "tool_use" {
                 hasError = true
-            }
-            if stopReason == "end_turn" {
-                hasEndTurn = true
             }
 
             guard !foundAssistant else { continue }
@@ -146,13 +142,14 @@ actor SubagentFileReader {
         let attrs = try? FileManager.default.attributesOfItem(atPath: file.path())
         let fileDate = (attrs?[.modificationDate] as? Date) ?? Date()
 
+        let fileAge = Date().timeIntervalSince(fileDate)
+
         let status: SessionStatus
         if hasError {
             status = .error
-        } else if hasEndTurn, let updated = lastUpdated, Date().timeIntervalSince(updated) > 60 {
+        } else if fileAge > 60 {
+            // File not modified for 60s → subagent has finished
             status = .completed
-        } else if let updated = lastUpdated, Date().timeIntervalSince(updated) > 300 {
-            status = .idle
         } else {
             status = .running
         }
