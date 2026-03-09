@@ -77,7 +77,9 @@ struct PopoverView: View {
         HStack(spacing: 0) {
             SessionTreeView(
                 sessions: viewModel.sessions,
-                selection: $viewModel.selection
+                selection: $viewModel.selection,
+                aliasResolver: { viewModel.alias(for: $0) },
+                aliasSaver: { sessionId, alias in viewModel.saveAlias(alias, for: sessionId) }
             )
 
             Divider()
