@@ -35,10 +35,6 @@ final class SessionListViewModel {
         return store.sessions
     }
 
-    var isInitialLoading: Bool {
-        store.isInitialLoading
-    }
-
     var activeCount: Int {
         store.sessions.filter { $0.status == .running || $0.status == .idle }.count
     }

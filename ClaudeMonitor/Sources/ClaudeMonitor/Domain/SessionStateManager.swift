@@ -24,8 +24,6 @@ actor SessionStateManager {
     private var pendingRemovals: [PendingRemoval] = []
     private var previousPids: Set<Int> = []
     private var pidToSessionId: [Int: String] = [:]
-    private var processPolledOnce = false
-    private var filePolledOnce = false
     private var dismissedSessionIds: Set<String> {
         didSet { Self.saveDismissedIds(dismissedSessionIds) }
     }
@@ -114,7 +112,6 @@ actor SessionStateManager {
 
         previousPids = currentPids
         await pushToStore()
-        await markProcessPolledOnce()
     }
 
     // MARK: - File Polling
@@ -154,7 +151,6 @@ actor SessionStateManager {
         }
 
         await pushToStore()
-        await markFilePolledOnce()
     }
 
     // MARK: - Session Management
@@ -257,6 +253,7 @@ actor SessionStateManager {
 
     private func updateSubagents(sessionId: String, subagents: [SubagentInfo]) {
         guard var session = managed[sessionId] else { return }
+        let activeSubagents = subagents.filter { $0.status != .completed }
         session.info = SessionInfo(
             id: session.info.id,
             pid: session.info.pid,
@@ -268,7 +265,7 @@ actor SessionStateManager {
             isTextTruncated: session.info.isTextTruncated,
             status: session.info.status,
             lastUpdated: session.info.lastUpdated,
-            subagents: subagents
+            subagents: activeSubagents
         )
         // AC-17: hasError rollup - include subagent errors
         if subagents.contains(where: { $0.status == .error }) {
@@ -344,25 +341,6 @@ actor SessionStateManager {
 
         await MainActor.run {
             sessionStore.sessions = sortedSessions
-        }
-    }
-
-    private func markProcessPolledOnce() async {
-        processPolledOnce = true
-        await flushInitialLoadIfReady()
-    }
-
-    private func markFilePolledOnce() async {
-        filePolledOnce = true
-        await flushInitialLoadIfReady()
-    }
-
-    private func flushInitialLoadIfReady() async {
-        guard processPolledOnce && filePolledOnce else { return }
-        await MainActor.run {
-            if sessionStore.isInitialLoading {
-                sessionStore.isInitialLoading = false
-            }
         }
     }
 

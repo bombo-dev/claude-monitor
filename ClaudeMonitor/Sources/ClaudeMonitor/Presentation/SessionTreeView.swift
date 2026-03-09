@@ -57,16 +57,26 @@ struct SessionTreeView: View {
                     .lineLimit(1)
 
                 HStack {
-                    Text(session.tty)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if isSessionDataLoading(session) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("데이터를 가져오는 중...")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(session.tty)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
                     Spacer()
 
-                    Text(relativeTime(from: session.lastUpdated))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if !isSessionDataLoading(session) {
+                        Text(relativeTime(from: session.lastUpdated))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -177,6 +187,10 @@ struct SessionTreeView: View {
             return String(agentType[agentType.index(after: colonIndex)...])
         }
         return agentType
+    }
+
+    private func isSessionDataLoading(_ session: SessionInfo) -> Bool {
+        session.gitBranch == "unknown" && session.lastAssistantText.isEmpty
     }
 
     private func relativeTime(from date: Date) -> String {
