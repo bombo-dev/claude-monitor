@@ -63,6 +63,11 @@ struct SessionTreeView: View {
                         Text("데이터를 가져오는 중...")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    } else if case .fileReadError(let reason) = session.status {
+                        Text(errorReasonText(reason))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
                     } else {
                         Text(session.tty)
                             .font(.caption)
@@ -187,6 +192,16 @@ struct SessionTreeView: View {
             return String(agentType[agentType.index(after: colonIndex)...])
         }
         return agentType
+    }
+
+    private func errorReasonText(_ reason: FileReadErrorReason) -> String {
+        switch reason {
+        case .noJsonlFile: "JSONL 파일 없음"
+        case .noAssistantMessage: "응답 메시지 없음"
+        case .encodingError: "인코딩 오류"
+        case .pathViolation: "경로 접근 차단"
+        case .unknown: "알 수 없는 오류"
+        }
     }
 
     private func isSessionDataLoading(_ session: SessionInfo) -> Bool {

@@ -50,8 +50,8 @@ struct SessionFileReaderTests {
         #expect(snapshot.hasError == false)
     }
 
-    // TC-08: No assistant message
-    @Test("throws noAssistantMessage when no assistant lines")
+    // TC-08: No assistant message → returns partial snapshot with empty text
+    @Test("returns empty text when no assistant lines")
     func noAssistantMessage() async throws {
         let (projectDir, reader) = try setupProjectDir()
         let file = projectDir.appending(path: "session1.jsonl")
@@ -61,9 +61,11 @@ struct SessionFileReaderTests {
         """
         try content.write(to: file, atomically: true, encoding: .utf8)
 
-        await #expect(throws: SessionFileError.noAssistantMessage) {
-            try await reader.readLatestSession(projectDirectory: projectDir)
-        }
+        let snapshot = try await reader.readLatestSession(projectDirectory: projectDir)
+        #expect(snapshot.sessionId == "abc-123")
+        #expect(snapshot.gitBranch == "main")
+        #expect(snapshot.lastAssistantText == "")
+        #expect(snapshot.hasError == false)
     }
 
     // TC-09: Empty directory
